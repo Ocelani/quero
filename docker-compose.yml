@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.4.2
+    container_name: traefik
+    command:
+      - "--log.level=DEBUG"
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true" # Don't do that in production
+      - "--providers.docker"
+      - "--entrypoints.web.address=:80"
+    labels: {}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+      - "80:80"
+
+  business:
+    container_name: business
+    environment:
+      DATABASE_NAME: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASS: admin
+      DATABASE_SSL: disable
+      DATABASE_TZ: America/Sao_Paulo
+    build:
+      context: .
+      args:
+        SERVICE_NAME: business-api
+    labels:
+      - traefik.http.routers.business.rule=Host(`localhost`) && PathPrefix(`/business`)
+      - traefik.http.services.business.loadbalancer.server.port=4000
+    depends_on:
+      - db
+
+  employee:
+    container_name: employee
+    environment:
+      DATABASE_NAME: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASS: admin
+      DATABASE_SSL: disable
+      DATABASE_TZ: America/Sao_Paulo
+    build:
+      context: .
+      args:
+        SERVICE_NAME: employee-api
+    labels:
+      - traefik.http.routers.employee.rule=Host(`localhost`) && PathPrefix(`/employee`)
+      - traefik.http.services.employee.loadbalancer.server.port=4000
+    depends_on:
+      - db
+      - business
+
+  db:
+    image: postgres
+    container_name: db
+    environment:
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    expose:
+      - "5432"
+    depends_on:
+      - traefik
+      
